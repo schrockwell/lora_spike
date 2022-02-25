@@ -1,0 +1,4 @@
+export MIX_TARGET='rpi2'
+export VINGATE_NET_WIFI_SSID='FBI Van'
+export VINTAGE_NET_WIFI_PSK='shhhh'
+

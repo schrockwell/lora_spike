@@ -46,7 +46,11 @@ defmodule LoraSpike.MixProject do
       # version updates, please review their release notes in case
       # changes to your application are needed.
       {:nerves_system_rpi2, "~> 1.17", runtime: false, targets: :rpi2},
-      {:nerves_system_rpi4, "~> 1.17", runtime: false, targets: :rpi4}
+      {:nerves_system_rpi4, "~> 1.17", runtime: false, targets: :rpi4},
+
+      # Target dependencies
+      # {:lora, "~> 1.0", targets: @all_targets}
+      {:lora, "~> 1.0", path: "../Elixir-LoRa/", targets: @all_targets}
     ]
   end
 

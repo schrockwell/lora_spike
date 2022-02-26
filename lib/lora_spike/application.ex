@@ -32,6 +32,7 @@ defmodule LoraSpike.Application do
 
   def children(_target) do
     [
+      LoraSpike.Radio
       # Children for all targets except host
       # Starts a worker by calling: LoraSpike.Worker.start_link(arg)
       # {LoraSpike.Worker, arg},

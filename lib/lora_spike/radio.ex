@@ -12,7 +12,11 @@ defmodule LoraSpike.Radio do
   end
 
   def ping(timeout \\ 1000) do
-    GenServer.call(__MODULE__, {:start_ping_sync, timeout})
+    GenServer.call(__MODULE__, {:start_ping_sync, timeout}, timeout + 1000)
+  end
+
+  def set_signal(bandwidth, spreading_factor) do
+    GenServer.cast(__MODULE__, {:set_signal, bandwidth, spreading_factor})
   end
 
   @impl GenServer
@@ -26,6 +30,8 @@ defmodule LoraSpike.Radio do
     {:ok, lora_pid} = LoRa.start_link(spi: "spidev0.1", encoding: :term)
 
     LoRa.begin(lora_pid, 915.0e6)
+    LoRa.set_spreading_factor(lora_pid, 10)
+    LoRa.set_signal_bandwidth(lora_pid, 125.0e3)
 
     Logger.info("LoRa radio initialized")
 
@@ -104,6 +110,12 @@ defmodule LoraSpike.Radio do
            pinged_at: System.monotonic_time(:millisecond)
        }}
     end
+  end
+
+  def handle_cast({:set_signal, bandwidth, spreading_factor}, state) do
+    LoRa.set_spreading_factor(state.lora_pid, spreading_factor)
+    LoRa.set_signal_bandwidth(state.lora_pid, bandwidth)
+    {:noreply, state}
   end
 
   @impl GenServer

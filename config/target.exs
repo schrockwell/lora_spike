@@ -103,6 +103,18 @@ config :mdns_lite,
     }
   ]
 
+config :ssd1306,
+  devices: [
+    %{
+      bus: "i2c-1",
+      address: 0x3C,
+      reset_pin: 4,
+      name: :display,
+      width: 128,
+      height: 32
+    }
+  ]
+
 # Import target specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 # Uncomment to use target specific configurations

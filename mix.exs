@@ -50,7 +50,9 @@ defmodule LoraSpike.MixProject do
 
       # Target dependencies
       # {:lora, "~> 1.0", targets: @all_targets}
-      {:lora, "~> 1.0", path: "../Elixir-LoRa/", targets: @all_targets}
+      {:lora, "~> 1.0", path: "../Elixir-LoRa/", targets: @all_targets},
+      {:ssd1306, "~> 0.1.1", targets: @all_targets},
+      {:vivid, "~> 0.4.3", targets: @all_targets}
     ]
   end
 

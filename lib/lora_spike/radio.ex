@@ -3,6 +3,8 @@ defmodule LoraSpike.Radio do
 
   require Logger
 
+  alias LoraSpike.Packet
+
   def start_link(_) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
@@ -27,7 +29,7 @@ defmodule LoraSpike.Radio do
     #   - The :encoding option requires the fork of the :lora dependency at
     #     https://github.com/schrockwell/Elixir-LoRa/tree/add-encoding
     #
-    {:ok, lora_pid} = LoRa.start_link(spi: "spidev0.1", encoding: :term)
+    {:ok, lora_pid} = LoRa.start_link(spi: "spidev0.1", encoding: :binary)
 
     LoRa.begin(lora_pid, 915.0e6)
     LoRa.set_spreading_factor(lora_pid, 10)
@@ -46,40 +48,15 @@ defmodule LoraSpike.Radio do
   end
 
   @impl GenServer
-  def handle_info({:lora, %{packet: {:ping, payload}}}, state) do
-    pong_packet = {:pong, %{from: this_device_id(), to: payload.from}}
+  def handle_info({:lora, %{packet: packet} = message}, state) do
+    case Packet.decode(packet) do
+      {:ok, decoded} ->
+        handle_packet(decoded, message, state)
 
-    LoRa.send(state.lora_pid, pong_packet)
-
-    {:noreply, state}
-  end
-
-  def handle_info({:lora, %{packet: {:pong, payload}} = message}, state) do
-    if state.ping_mode != nil && payload.to == this_device_id() do
-      Logger.debug("Pong received from #{payload.from}")
-
-      pong_info = %{
-        from: payload.from,
-        rtt: {System.monotonic_time(:millisecond) - state.pinged_at, :ms},
-        rssi: {message.rssi, :dBm},
-        snr: {message.snr, :dB},
-        time: message.time
-      }
-
-      if state.ping_mode == :async do
-        send(state.ping_client, {__MODULE__, :pong, pong_info})
-      end
-
-      {:noreply, %{state | pongs_received: [pong_info | state.pongs_received]}}
-    else
-      {:noreply, state}
+      :error ->
+        Logger.error("Unable to decode packet: #{inspect(packet)}")
+        {:noreply, state}
     end
-  end
-
-  def handle_info({:lora, info}, state) do
-    Logger.info(inspect(info), label: "LoRa")
-
-    {:noreply, state}
   end
 
   def handle_info(:stop_ping, state) do
@@ -98,7 +75,7 @@ defmodule LoraSpike.Radio do
     if state.ping_client do
       {:noreply, state}
     else
-      transmit_ping(state)
+      LoRa.send(state.lora_pid, Packet.encode(:ping))
 
       Process.send_after(self(), :stop_ping, ping_timeout)
 
@@ -125,7 +102,7 @@ defmodule LoraSpike.Radio do
     else
       pinged_at = System.monotonic_time(:millisecond)
 
-      transmit_ping(state)
+      LoRa.send(state.lora_pid, Packet.encode(:ping))
 
       Process.send_after(self(), :stop_ping, ping_timeout)
 
@@ -139,10 +116,38 @@ defmodule LoraSpike.Radio do
     end
   end
 
-  defp transmit_ping(state) do
-    ping_packet = {:ping, %{from: this_device_id()}}
+  defp handle_packet({:ping, _}, _, state) do
+    pong_packet = Packet.encode(:pong, from: this_device_id())
+    LoRa.send(state.lora_pid, pong_packet)
 
-    LoRa.send(state.lora_pid, ping_packet)
+    {:noreply, state}
+  end
+
+  defp handle_packet({:pong, payload}, message, state) do
+    if state.ping_mode != nil do
+      Logger.debug("Pong received from #{payload.from}")
+
+      pong_info = %{
+        from: payload.from,
+        rtt: {System.monotonic_time(:millisecond) - state.pinged_at, :ms},
+        rssi: {message.rssi, :dBm},
+        snr: {message.snr, :dB},
+        time: message.time
+      }
+
+      if state.ping_mode == :async do
+        send(state.ping_client, {__MODULE__, :pong, pong_info})
+      end
+
+      {:noreply, %{state | pongs_received: [pong_info | state.pongs_received]}}
+    else
+      {:noreply, state}
+    end
+  end
+
+  defp handle_packet(unknown_packet, _, state) do
+    Logger.error("Unable to handle packet: #{inspect(unknown_packet)}")
+    {:noreply, state}
   end
 
   defp this_device_id, do: Nerves.Runtime.serial_number()
